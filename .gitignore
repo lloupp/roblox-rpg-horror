@@ -1,0 +1,17 @@
+# Rojo artifacts
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+
+# Aftman / toolchain
+.aftman/
+.bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

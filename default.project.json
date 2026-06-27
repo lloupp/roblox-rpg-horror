@@ -1,0 +1,60 @@
+{
+  "name": "DarkSurvivors",
+  "tree": {
+    "$className": "DataModel",
+
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "ServerScripts",
+      "Modules": {
+        "$path": "Modules"
+      }
+    },
+
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "ClientScripts"
+      }
+    },
+
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": {
+        "$path": "SharedScripts"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "UpdateStats":       { "$className": "RemoteEvent" },
+        "AttackRequest":     { "$className": "RemoteEvent" },
+        "AttackResult":      { "$className": "RemoteEvent" },
+        "InventoryUpdate":   { "$className": "RemoteEvent" },
+        "InventoryAction":   { "$className": "RemoteEvent" },
+        "CraftingResult":    { "$className": "RemoteEvent" },
+        "HorrorEvent":       { "$className": "RemoteEvent" },
+        "SanityEffect":      { "$className": "RemoteEvent" },
+        "WeatherUpdate":     { "$className": "RemoteEvent" },
+        "TimeUpdate":        { "$className": "RemoteEvent" },
+        "InteractionPrompt": { "$className": "RemoteEvent" },
+        "DamageNumber":      { "$className": "RemoteEvent" },
+        "JumpScare":         { "$className": "RemoteEvent" }
+      }
+    },
+
+    "Workspace": {
+      "$className": "Workspace",
+      "Biomes": {
+        "$className": "Folder",
+        "Forest":   { "$className": "Folder" },
+        "Swamp":    { "$className": "Folder" },
+        "Ruins":    { "$className": "Folder" },
+        "Bunker":   { "$className": "Folder" },
+        "Hospital": { "$className": "Folder" },
+        "Caves":    { "$className": "Folder" }
+      },
+      "EnemySpawns": { "$className": "Folder" },
+      "LootSpawns":  { "$className": "Folder" }
+    }
+  }
+}
