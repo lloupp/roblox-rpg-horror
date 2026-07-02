@@ -209,30 +209,13 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ========== REMOTE HANDLERS ==========
-local EatRemote = ensureRemote("EatFood", "RemoteEvent")
-local DrinkRemote = ensureRemote("DrinkItem", "RemoteEvent")
+-- Note: eating/drinking go through InventorySystem's validated "use" action
+-- (which checks the player actually owns the item) via _G.ApplyConsumable below.
+-- There is intentionally no direct client-facing EatFood/DrinkItem/ModifySanity
+-- remote here, since the server can't verify item ownership or a sanity amount
+-- supplied straight from an untrusted client.
 local RestRemote = ensureRemote("Rest", "RemoteEvent")
 local RunToggle = ensureRemote("ToggleRun", "RemoteEvent")
-
-EatRemote.OnServerEvent:Connect(function(player, foodName)
-    local s = getStats(player)
-    if not s then return end
-    local effect = FOOD_EFFECTS[foodName]
-    if not effect then return end
-    if effect.Hunger then s.Hunger = clamp(s.Hunger + effect.Hunger, 0, 100) end
-    if effect.Sanity then s.Sanity = clamp(s.Sanity + effect.Sanity, 0, 100) end
-    if effect.Health then s.Health = clamp(s.Health + effect.Health, 0, s.MaxHealth) end
-end)
-
-DrinkRemote.OnServerEvent:Connect(function(player, drinkName)
-    local s = getStats(player)
-    if not s then return end
-    local effect = DRINK_EFFECTS[drinkName]
-    if not effect then return end
-    if effect.Thirst then s.Thirst = clamp(s.Thirst + effect.Thirst, 0, 100) end
-    if effect.Stamina then s.Stamina = clamp(s.Stamina + effect.Stamina, 0, 100) end
-    if effect.Health then s.Health = clamp(s.Health + effect.Health, 0, s.MaxHealth) end
-end)
 
 RestRemote.OnServerEvent:Connect(function(player)
     local s = getStats(player)
@@ -244,15 +227,6 @@ RunToggle.OnServerEvent:Connect(function(player, isRunning)
     local s = getStats(player)
     if not s then return end
     s.IsRunning = isRunning and s.Stamina > 0
-end)
-
--- ========== SANITY MODIFY (called by other server scripts) ==========
-local ModifySanityRemote = ensureRemote("ModifySanity", "RemoteEvent")
-
-ModifySanityRemote.OnServerEvent:Connect(function(player, amount)
-    local s = getStats(player)
-    if not s then return end
-    s.Sanity = clamp(s.Sanity + amount, 0, 100)
 end)
 
 -- ========== PLAYER LIFECYCLE ==========
