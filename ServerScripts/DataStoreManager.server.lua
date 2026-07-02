@@ -139,6 +139,14 @@ local function savePlayerData(player)
         end
     end
 
+    -- Pull authoritative inventory straight from InventorySystem (never from client input)
+    local snapshot = _G.GetInventorySnapshot and _G.GetInventorySnapshot(player)
+    if snapshot then
+        playerData[userId].inventory = snapshot.slots
+        playerData[userId].equipped = snapshot.equipped
+        playerData[userId].hotbar = snapshot.hotbar
+    end
+
     -- Update playtime
     playerData[userId].playtime = playerData[userId].playtime + SAVE_INTERVAL
 
@@ -161,31 +169,6 @@ _G.MarkDataDirty = markDirty
 _G.GetPlayerData = function(player)
     return playerData[player.UserId]
 end
-
--- ========== UPDATE INVENTORY (from InventorySystem) ==========
-local InventoryActionRemote = ensureRemote("InventoryAction", "RemoteEvent")
-InventoryActionRemote.OnServerEvent:Connect(function(player, action, data)
-    local pd = playerData[player.UserId]
-    if not pd then return end
-
-    if action == "updateInventory" then
-        pd.inventory = data.inventory
-        markDirty(player)
-    elseif action == "updateEquipped" then
-        pd.equipped = data.equipped
-        markDirty(player)
-    end
-end)
-
--- ========== UPDATE STATS (from SurvivalSystem) ==========
-local StatsUpdateRemote = ensureRemote("DataStatsUpdate", "RemoteEvent")
-StatsUpdateRemote.OnServerEvent:Connect(function(player, stats)
-    local pd = playerData[player.UserId]
-    if pd then
-        pd.stats = stats
-        markDirty(player)
-    end
-end)
 
 -- ========== PLAYER LIFECYCLE ==========
 Players.PlayerAdded:Connect(function(player)

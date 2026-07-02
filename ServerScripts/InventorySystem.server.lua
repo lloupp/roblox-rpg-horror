@@ -50,10 +50,9 @@ local function initInventory(player)
         hotbar = { nil, nil, nil, nil },
     }
 
-    -- Grant starter items if new player
     local pd = _G.GetPlayerData and _G.GetPlayerData(player)
     if pd and pd.isNew then
-        local inv = inventories[player.UserId]
+        -- Grant starter items to new players
         local starters = {
             { itemId = "Flashlight", count = 1 },
             { itemId = "Bandage", count = 2 },
@@ -64,6 +63,12 @@ local function initInventory(player)
             addItem(player, item.itemId, item.count)
         end
         pd.isNew = false
+    elseif pd then
+        -- Restore saved inventory for returning players
+        local inv = inventories[player.UserId]
+        inv.slots = pd.inventory or {}
+        inv.equipped = pd.equipped or { weapon = nil, armor = nil, tool = nil }
+        inv.hotbar = pd.hotbar or { nil, nil, nil, nil }
     end
 end
 
@@ -255,6 +260,7 @@ InventoryAction.OnServerEvent:Connect(function(player, action, data)
             inv.slots[data.from] = inv.slots[data.to]
             inv.slots[data.to] = temp
             syncInventory(player)
+            if _G.MarkDataDirty then _G.MarkDataDirty(player) end
         end
 
     elseif action == "equip" then
@@ -266,6 +272,7 @@ InventoryAction.OnServerEvent:Connect(function(player, action, data)
                 if item then
                     inv.equipped[data.equipSlot] = slot.itemId
                     syncInventory(player)
+                    if _G.MarkDataDirty then _G.MarkDataDirty(player) end
                 end
             end
         end
@@ -275,6 +282,7 @@ InventoryAction.OnServerEvent:Connect(function(player, action, data)
         if inv and data.equipSlot then
             inv.equipped[data.equipSlot] = nil
             syncInventory(player)
+            if _G.MarkDataDirty then _G.MarkDataDirty(player) end
         end
 
     elseif action == "drop" then
@@ -307,6 +315,7 @@ InventoryAction.OnServerEvent:Connect(function(player, action, data)
 
                 table.remove(inv.slots, data.slotIndex)
                 syncInventory(player)
+                if _G.MarkDataDirty then _G.MarkDataDirty(player) end
             end
         end
 
@@ -346,6 +355,7 @@ InventoryAction.OnServerEvent:Connect(function(player, action, data)
         if inv and data.slotIndex and data.hotbarIndex then
             inv.hotbar[data.hotbarIndex] = data.slotIndex
             syncInventory(player)
+            if _G.MarkDataDirty then _G.MarkDataDirty(player) end
         end
     end
 end)
@@ -390,5 +400,17 @@ end)
 Players.PlayerRemoving:Connect(function(player)
     inventories[player.UserId] = nil
 end)
+
+-- ========== AUTHORITATIVE SNAPSHOT (for DataStoreManager) ==========
+-- Server-owned inventory state, never derived from client input
+_G.GetInventorySnapshot = function(player)
+    local inv = inventories[player.UserId]
+    if not inv then return nil end
+    return {
+        slots = inv.slots,
+        equipped = inv.equipped,
+        hotbar = inv.hotbar,
+    }
+end
 
 print("[InventorySystem] Loaded ✓")
