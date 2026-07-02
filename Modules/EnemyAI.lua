@@ -73,6 +73,7 @@ function EnemyAI.new(npc, enemyType, spawnPosition)
         lastAttackTime = 0,
         patrolTarget = nil,
         stateTimer = 0,
+        isPathing = false,
     }
 
     -- Set NPC properties
@@ -151,20 +152,30 @@ function EnemyAI:chaseTarget()
     local dist = (rootPart.Position - targetRoot.Position).Magnitude
 
     if dist < 10 then
+        self.isPathing = false
         humanoid:MoveTo(targetRoot.Position)
-    else
-        local path = PathfindingService:CreatePath({
-            Costs = { Water = 20 },
-            AgentCanJump = true,
-        })
-        path:ComputeAsync(rootPart.Position, targetRoot.Position)
-        if path.Status == Enum.PathStatus.Success then
-            local waypoints = path:GetWaypoints()
-            for _, wp in ipairs(waypoints) do
-                humanoid:MoveTo(wp.Position)
-                humanoid.MoveToFinished:Wait()
+    elseif not self.isPathing then
+        -- Follow waypoints on a separate coroutine so a long path doesn't
+        -- block update() (and therefore every other enemy's turn) for the
+        -- several seconds it can take to walk it.
+        self.isPathing = true
+        task.spawn(function()
+            local path = PathfindingService:CreatePath({
+                Costs = { Water = 20 },
+                AgentCanJump = true,
+            })
+            local computed = pcall(function()
+                path:ComputeAsync(rootPart.Position, targetRoot.Position)
+            end)
+            if computed and path.Status == Enum.PathStatus.Success then
+                for _, wp in ipairs(path:GetWaypoints()) do
+                    if not self.isPathing or not humanoid.Parent then break end
+                    humanoid:MoveTo(wp.Position)
+                    humanoid.MoveToFinished:Wait()
+                end
             end
-        end
+            self.isPathing = false
+        end)
     end
 end
 

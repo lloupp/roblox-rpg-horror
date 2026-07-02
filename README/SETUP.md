@@ -30,7 +30,9 @@
  │   ├── InventorySystem.server.lua
  │   ├── WorldSystem.server.lua
  │   ├── HorrorSystem.server.lua
- │   └── DataStoreManager.server.lua
+ │   ├── DataStoreManager.server.lua
+ │   ├── WorldBootstrap.server.lua      ← gera mundo placeholder + lighting
+ │   └── EnemySpawnManager.server.lua   ← spawna inimigos a partir do EnemyAI
  │
  ├── ClientScripts/          ← Scripts de cliente (LocalScript)
  │   ├── HUD.client.lua
@@ -53,73 +55,37 @@
 
 ## 🛠️ Como Montar no Roblox Studio
 
-### Passo 1 — Criar o Place
-1. Abra o **Roblox Studio**
-2. Crie um novo **Baseplate** ou **Empty Place**
-3. Salve como `DarkSurvivors`
+O projeto usa [Rojo](https://rojo.space/) (`default.project.json`) e é **auto-inicializável**: RemoteEvents, mundo placeholder (chão, 6 zonas de bioma, spawn point, iluminação/atmosfera) e os inimigos já nascem sozinhos quando o servidor inicia. Não é preciso criar nada manualmente no Explorer.
 
-### Passo 2 — Criar RemoteEvents
-No **ReplicatedStorage**, crie uma Folder chamada `Remotes` com estes RemoteEvents:
+### Passo 1 — Instalar o Rojo
+1. Instale a extensão/plugin **Rojo** no Roblox Studio (Plugin Marketplace) e o Rojo CLI (`cargo install rojo` ou via [rojo.space](https://rojo.space/docs/installation/)).
+2. Abra o Roblox Studio e crie um **Empty Place** (não precisa ser Baseplate — o `WorldBootstrap` cria o chão).
 
-```
-Remotes/
-├── UpdateStats          (Server → Client: sync stats)
-├── AttackRequest        (Client → Server: player attacks)
-├── AttackResult         (Server → Client: hit feedback)
-├── InventoryUpdate      (Server → Client: inventory sync)
-├── InventoryAction      (Client → Server: pickup/equip/drop/craft)
-├── CraftingResult       (Server → Client: craft success/fail)
-├── HorrorEvent          (Server → Client: trigger horror event)
-├── SanityEffect         (Server → Client: sanity visual effect)
-├── WeatherUpdate        (Server → Client: weather change)
-├── TimeUpdate           (Server → Client: day/night cycle)
-├── InteractionPrompt    (Server → Client: show E/F prompt)
-├── DamageNumber         (Server → Client: floating damage)
-└── JumpScare            (Server → Client: jump scare trigger)
-```
+### Passo 2 — Sincronizar o projeto
+1. Na pasta do repositório, rode `rojo serve` (ou `rojo build -o DarkSurvivors.rbxlx` se preferir gerar o arquivo direto).
+2. No Studio, abra o plugin Rojo e clique em **Connect**.
+3. Isso monta automaticamente a árvore descrita em `default.project.json`:
 
-### Passo 3 — Organizar Scripts
-| Script | Tipo | Local no Explorer |
-|--------|------|-------------------|
-| SurvivalSystem | **Script** | `ServerScriptService` |
-| CombatSystem | **Script** | `ServerScriptService` |
-| InventorySystem | **Script** | `ServerScriptService` |
-| WorldSystem | **Script** | `ServerScriptService` |
-| HorrorSystem | **Script** | `ServerScriptService` |
-| DataStoreManager | **Script** | `ServerScriptService` |
-| HUD | **LocalScript** | `StarterPlayerScripts` |
-| HorrorEffects | **LocalScript** | `StarterPlayerScripts` |
-| ItemData | **ModuleScript** | `ReplicatedStorage/Shared` |
-| EnemyAI | **ModuleScript** | `ServerScriptService/Modules` |
+| Pasta local | Vai para |
+|-------------|----------|
+| `ServerScripts/` | `ServerScriptService` |
+| `Modules/` | `ServerScriptService/Modules` |
+| `ClientScripts/` | `StarterPlayer/StarterPlayerScripts` |
+| `SharedScripts/` | `ReplicatedStorage/Shared` |
 
-### Passo 4 — Configurar o Mapa
+Isso inclui os 8 scripts do servidor: `SurvivalSystem`, `CombatSystem`, `InventorySystem`, `WorldSystem`, `HorrorSystem`, `DataStoreManager`, `WorldBootstrap` e `EnemySpawnManager`.
 
-#### Biomas (coloque Parts/Folders com estes nomes em `Workspace/Biomes`):
-- **Forest** — Árvores, grama, caminhos
-- **Swamp** — Água rasa, névoa verde, debuff de veneno
-- **Ruins** — Prédios destruídos, loot, inimigos
-- **Bunker** — Interiors, safe zone, crafting stations
-- **Hospital** — Corredores, salas, alto horror, loot médico
-- **Caves** — Túneis escuros, recursos raros
+### Passo 3 — O que acontece automaticamente ao dar Play
+- **Remotes**: cada sistema cria seus próprios `RemoteEvent`s em `ReplicatedStorage/Remotes` sob demanda (não precisa criar nenhum à mão).
+- **Mundo**: `WorldBootstrap.server.lua` gera um chão, 6 zonas de bioma (`Forest`, `Swamp`, `Ruins`, `Bunker`, `Hospital`, `Caves`) e um `SpawnLocation` — placeholders coloridos e planos, prontos para virar terreno/arte de verdade depois.
+- **Iluminação**: `ClockTime`, `Brightness`, `Ambient`, `FogEnd` e um objeto `Atmosphere` (Density 0.3) são configurados pelo mesmo script.
+- **Inimigos**: `EnemySpawnManager.server.lua` cria marcadores em `Workspace/EnemySpawns` (prefixo do nome define o tipo, ex. `ZombieSpawn1`) e spawna um `Zombie`, `Shadow` ou `Mutant` em cada um, usando `Modules/EnemyAI.lua` para movimentação/combate e respawn automático após a morte.
 
-#### Enemy Spawns (coloque Parts em `Workspace/EnemySpawns`):
-- Nomeie cada spawn: `ZombieSpawn1`, `ShadowSpawn3`, etc.
-- Tipo de inimigo é determinado pelo prefixo do nome
+Cada uma dessas etapas só roda se a pasta/objeto correspondente ainda não existir — então dá pra substituir qualquer placeholder por arte/level design de verdade sem medo de o script sobrescrever seu trabalho.
 
-#### Loot Spawns (Parts em `Workspace/LootSpawns`):
-- Itens spawnam aleatoriamente nestes pontos
-
-### Passo 5 — Configurar Lighting
-No serviço **Lighting**, set:
-- `ClockTime = 14` (iniciar de dia)
-- `Brightness = 2`
-- `Ambient = Color3.fromRGB(128,128,128)`
-- `FogEnd = 10000`
-- `Atmosphere` object: Density 0.3
-
-### Passo 6 — Testar
+### Passo 4 — Testar
 1. Pressione **Play** (F5)
-2. Verifique o console (View → Output) por erros
+2. Verifique o console (View → Output) por erros — cada sistema imprime `Loaded ✓` ao iniciar
 3. Teste cada sistema individualmente
 4. Para multiplayer: Publish → Test → Start Server + Players
 
@@ -178,7 +144,7 @@ No serviço **Lighting**, set:
 
 ## 🚀 Próximos Passos (Pós-Chassis)
 
-- [ ] Modelar inimigos no Blender → importar como MeshPart
+- [ ] Modelar inimigos no Blender → importar como MeshPart (hoje `EnemySpawnManager` gera rigs R15 procedurais tingidos por tipo como placeholder)
 - [ ] Adicionar sons próprios (criaturas, ambiente, jump scares)
 - [ ] Criar animações de ataque (Moon Animator)
 - [ ] Balancear stats/dano/tempo
