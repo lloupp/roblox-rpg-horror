@@ -369,6 +369,35 @@ if EquipRemote then
     end)
 end
 
+-- ========== DEFESA DO JOGADOR (gap #2) ==========
+-- Lê a armadura equipada e devolve stats para quem aplica dano.
+-- Reduz dano por def/(def+50) (diminishing returns estilo Roblox).
+local function getDefenseForPlayer(player)
+    local inv = inventories[player.UserId]
+    if not inv then
+        return { defense = 0, blockBonus = 0, poisonImmunity = false }
+    end
+
+    local defense = 0
+    local blockBonus = 0
+    local poisonImmunity = false
+
+    local armorId = inv.equipped and inv.equipped.armor
+    if armorId then
+        local item = ItemData.GetItem(armorId)
+        if item then
+            defense = defense + (item.defense or 0)
+            blockBonus = blockBonus + (item.blockBonus or 0)
+            if item.poisonImmunity then poisonImmunity = true end
+        end
+    end
+
+    return { defense = defense, blockBonus = blockBonus, poisonImmunity = poisonImmunity }
+end
+
+-- Outros scripts (CombatSystem, EnemyAI) consomem isso no momento do hit.
+_G.GetDefenseForPlayer = getDefenseForPlayer
+
 -- ========== PLAYER LIFECYCLE ==========
 -- initInventory roda APÓS o DataStoreManager terminar o load (hook abaixo), então
 -- pd.inventory / pd.equipped já existem e reaproveitamos suas referências.

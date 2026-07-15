@@ -165,6 +165,17 @@ AttackRequest.OnServerEvent:Connect(function(player, weaponName)
     end
 
     local damage = calculateDamage(weapon, isCrit, isBlocked)
+
+    -- Apply equipped armor defense (gap #2): def/(def+50), + blockBonus se bloqueando
+    local def = _G.GetDefenseForPlayer and _G.GetDefenseForPlayer(targetPlayer)
+    if def and def.defense and def.defense > 0 then
+        damage = damage * (1 - def.defense / (def.defense + 50))
+        if isBlocked and def.blockBonus then
+            damage = damage * (1 - def.blockBonus)
+        end
+    end
+    damage = math.floor(damage)
+
     targetHumanoid:TakeDamage(damage)
 
     AttackResult:FireClient(player, {

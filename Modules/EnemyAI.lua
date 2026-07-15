@@ -7,6 +7,21 @@ local RunService = game:GetService("RunService")
 
 local EnemyAI = {}
 
+-- ========== PLAYER DAMAGE (gap #2) ==========
+-- Aplica dano de inimigo respeitando defesa de armadura equipada no alvo.
+local function damagePlayer(targetPlayer, rawDamage)
+    local char = targetPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not hum then return end
+
+    local dmg = rawDamage
+    local def = _G.GetDefenseForPlayer and _G.GetDefenseForPlayer(targetPlayer)
+    if def and def.defense and def.defense > 0 then
+        dmg = dmg * (1 - def.defense / (def.defense + 50))
+    end
+    hum:TakeDamage(math.floor(dmg))
+end
+
 -- ========== ENEMY CONFIGS ==========
 local ENEMY_CONFIGS = {
     Zombie = {
@@ -188,7 +203,7 @@ function EnemyAI:attackTarget()
         self:spawnProjectile()
     else
         -- Melee attack
-        targetHumanoid:TakeDamage(self.config.attackDamage)
+        damagePlayer(self.target, self.config.attackDamage)
     end
 end
 
@@ -222,7 +237,7 @@ function EnemyAI:spawnProjectile()
         if player then
             local targetHum = targetChar:FindFirstChild("Humanoid")
             if targetHum then
-                targetHum:TakeDamage(self.config.attackDamage)
+                damagePlayer(player, self.config.attackDamage)
             end
         end
         projectile:Destroy()
