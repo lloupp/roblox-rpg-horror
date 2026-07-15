@@ -162,7 +162,8 @@ function EnemyAI:chaseTarget()
             local waypoints = path:GetWaypoints()
             for _, wp in ipairs(waypoints) do
                 humanoid:MoveTo(wp.Position)
-                humanoid.MoveToFinished:Wait()
+                local reached = humanoid.MoveToFinished:Wait()
+                if not reached then break end  -- travou/timeout: evita travamento infinito
             end
         end
     end
