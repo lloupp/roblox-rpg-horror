@@ -42,29 +42,21 @@ local BACKPACK_WEIGHT_BONUS = 20
 local inventories = {}
 
 local function initInventory(player)
+    -- FONTE DA VERDADE = DataStore (carregado pelo DataStoreManager ANTES deste rodar,
+    -- via hook _G.OnPlayerDataLoaded). Reaproveitamos a MESMA referência de tabela
+    -- (pd.inventory / pd.equipped) para que mutações in-place persistam no auto-save.
+    local pd = _G.GetPlayerData and _G.GetPlayerData(player)
+    if inventories[player.UserId] then return end  -- evita double-init
+
     inventories[player.UserId] = {
-        slots = {},        -- array of { itemId, count } or nil
+        slots = pd and pd.inventory or {},
         maxSlots = BASE_SLOTS,
         maxWeight = BASE_CARRY_WEIGHT,
-        equipped = { weapon = nil, armor = nil, tool = nil },
+        equipped = pd and pd.equipped or { weapon = nil, armor = nil, tool = nil },
         hotbar = { nil, nil, nil, nil },
     }
-
-    -- Grant starter items if new player
-    local pd = _G.GetPlayerData and _G.GetPlayerData(player)
-    if pd and pd.isNew then
-        local inv = inventories[player.UserId]
-        local starters = {
-            { itemId = "Flashlight", count = 1 },
-            { itemId = "Bandage", count = 2 },
-            { itemId = "CannedBeans", count = 1 },
-            { itemId = "WaterBottle", count = 1 },
-        }
-        for _, item in ipairs(starters) do
-            addItem(player, item.itemId, item.count)
-        end
-        pd.isNew = false
-    end
+    -- Itens iniciais de novo jogador já são concedidos em DataStoreManager.loadPlayerData
+    -- (DEFAULT_DATA + STARTER_ITEMS); aqui só consumimos pd.inventory.
 end
 
 -- ========== CALCULATE WEIGHT ==========
@@ -378,9 +370,11 @@ if EquipRemote then
 end
 
 -- ========== PLAYER LIFECYCLE ==========
+-- initInventory roda APÓS o DataStoreManager terminar o load (hook abaixo), então
+-- pd.inventory / pd.equipped já existem e reaproveitamos suas referências.
+_G.OnPlayerDataLoaded = initInventory
+
 Players.PlayerAdded:Connect(function(player)
-    initInventory(player)
-    -- Delay sync until after DataStore load
     player.CharacterAdded:Connect(function()
         task.wait(1)
         syncInventory(player)

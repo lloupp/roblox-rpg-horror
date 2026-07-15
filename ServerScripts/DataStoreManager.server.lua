@@ -191,6 +191,12 @@ end)
 Players.PlayerAdded:Connect(function(player)
     loadPlayerData(player)
 
+    -- Entrega ao InventorySystem (e outros consumidores) já com pd pronto.
+    -- initInventory reaproveita pd.inventory / pd.equipped por referência -> muda e persiste.
+    if _G.OnPlayerDataLoaded then
+        _G.OnPlayerDataLoaded(player)
+    end
+
     -- Restore position on spawn
     player.CharacterAdded:Connect(function(character)
         local pd = playerData[player.UserId]
