@@ -87,6 +87,7 @@ Remotes/
 | WorldSystem | **Script** | `ServerScriptService` |
 | HorrorSystem | **Script** | `ServerScriptService` |
 | DataStoreManager | **Script** | `ServerScriptService` |
+| EnemySpawner | **Script** | `ServerScriptService` |
 | HUD | **LocalScript** | `StarterPlayerScripts` |
 | HorrorEffects | **LocalScript** | `StarterPlayerScripts` |
 | ItemData | **ModuleScript** | `ReplicatedStorage/Shared` |
