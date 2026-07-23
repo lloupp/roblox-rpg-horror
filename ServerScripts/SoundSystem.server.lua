@@ -39,7 +39,7 @@ local SOUNDS = {
 
     -- Horror
     whisper     = "rbxassetid://0",
-    ambientDrone= "rbxassetid://9046863143",
+    ambientDrone= "rbxassetid://0",
     jumpscare   = "rbxassetid://0",
     heartbeat   = "rbxassetid://0",
 

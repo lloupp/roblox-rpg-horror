@@ -335,13 +335,30 @@ InventoryUpdate.OnClientEvent:Connect(function(data)
     equipLabel.Text = table.concat(equipTexts, "  ")
 end)
 
--- ========== TIME UPDATE ==========
+-- ========== TIME UPDATE =========
 local TimeUpdate = Remotes:WaitForChild("TimeUpdate")
 TimeUpdate.OnClientEvent:Connect(function(data)
     local h = math.floor(data.clockTime)
     local m = math.floor((data.clockTime % 1) * 60)
     local icon = data.isNight and "🌙" or "☀️"
     clockLabel.Text = icon .. " " .. string.format("%02d:%02d", h, m)
+end)
+
+-- ========== GAME UPDATE (survival timer + kills) =========
+local GameUpdate = Remotes:WaitForChild("GameUpdate")
+local survivalLabel = Instance.new("TextLabel")
+survivalLabel.Size = UDim2.new(0, 150, 0, 25)
+survivalLabel.Position = UDim2.new(1, -160, 0, 45)
+survivalLabel.BackgroundTransparency = 0.3
+survivalLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+survivalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+survivalLabel.Font = Enum.Font.GothamBold
+survivalLabel.TextSize = 12
+survivalLabel.Text = "⏱️ 0s | 💀 0"
+survivalLabel.Parent = gui
+
+GameUpdate.OnClientEvent:Connect(function(data)
+    survivalLabel.Text = "⏱️ " .. (data.survivalTime or 0) .. "s | 💀 " .. (data.kills or 0)
 end)
 
 -- ========== CRAFTING RESULT ==========
