@@ -6,7 +6,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local DATA_VERSION = 1
+local DATA_VERSION = 2
 local SAVE_INTERVAL = 60     -- auto-save every 60 sec
 local MAX_RETRIES = 3
 local RETRY_DELAY = 1
@@ -48,6 +48,10 @@ local DEFAULT_DATA = {
     position = { x = 0, y = 5, z = 0 },
     playtime = 0,
     isNew = true,
+    -- Phase 4: progression data
+    kills = 0,
+    bestSurvival = 0,
+    totalDeaths = 0,
 }
 
 -- Starter items for new players
@@ -91,7 +95,12 @@ local function loadPlayerData(player)
     if data then
         -- Version check / migration
         if data.version ~= DATA_VERSION then
-            -- Future migration logic here
+            -- Phase 4: migrate v1 → v2 (add kills, bestSurvival, totalDeaths)
+            if data.version == 1 then
+                data.kills = data.kills or 0
+                data.bestSurvival = data.bestSurvival or 0
+                data.totalDeaths = data.totalDeaths or 0
+            end
             data.version = DATA_VERSION
         end
         playerData[player.UserId] = data

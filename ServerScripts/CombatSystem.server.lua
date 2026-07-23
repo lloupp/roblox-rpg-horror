@@ -214,7 +214,7 @@ AttackRequest.OnServerEvent:Connect(function(player, weaponName)
         PlaySound:FireAllClients(sndName, hitPosition)
     end
 
-    -- Enemy death → loot
+    -- Enemy death → loot + kill tracking
     if targetHumanoid.Health <= 0 then
         local enemyType = targetCharacter:FindFirstChild("EnemyType")
         if enemyType then
@@ -222,6 +222,8 @@ AttackRequest.OnServerEvent:Connect(function(player, weaponName)
             local pos = rootPart and rootPart.Position or hitPosition
             dropLoot(enemyType.Value, pos)
         end
+        -- Phase 4: track kills for leaderboard
+        if _G.OnEnemyKill then _G.OnEnemyKill(player) end
     end
 end)
 
