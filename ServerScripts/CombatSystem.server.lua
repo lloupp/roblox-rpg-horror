@@ -111,10 +111,17 @@ local function dropLoot(enemyType, position)
     end
 end
 
--- ========== ATTACK HANDLER ==========
+-- ========== ATTACK HANDLER =========
 AttackRequest.OnServerEvent:Connect(function(player, weaponName)
     local cs = combatState[player.UserId]
     if not cs then return end
+
+    -- Bug #5: valida que o jogador realmente tem a arma equipada.
+    -- Antes o cliente podia atacar com qualquer arma sem a possuir.
+    local equipped = _G.GetEquippedWeapon and _G.GetEquippedWeapon(player)
+    if not equipped or equipped ~= weaponName then
+        return
+    end
 
     local weapon = WEAPONS[weaponName]
     if not weapon then return end
@@ -224,6 +231,13 @@ EquipRemote.OnServerEvent:Connect(function(player, weaponName)
         if WEAPONS[weaponName].type == "ranged" and not cs.ammo[weaponName] then
             cs.ammo[weaponName] = WEAPONS[weaponName].ammo
         end
+    end
+    -- Bug #5: sincroniza inv.equipped.weapon e persiste via DataStore
+    local inv = _G.GetInventory and _G.GetInventory(player)
+    if inv and WEAPONS[weaponName] then
+        inv.equipped = inv.equipped or {}
+        inv.equipped.weapon = weaponName
+        if _G.MarkDataDirty then _G.MarkDataDirty(player) end
     end
 end)
 

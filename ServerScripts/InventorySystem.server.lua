@@ -398,6 +398,18 @@ end
 -- Outros scripts (CombatSystem, EnemyAI) consomem isso no momento do hit.
 _G.GetDefenseForPlayer = getDefenseForPlayer
 
+-- Bug #5: expõe a arma equipada para o CombatSystem validar no AttackRequest.
+_G.GetEquippedWeapon = function(player)
+    local inv = inventories[player.UserId]
+    if not inv then return nil end
+    return inv.equipped and inv.equipped.weapon
+end
+
+-- Bug #5: expõe a tabela de inventário para sincronização de equip no CombatSystem.
+_G.GetInventory = function(player)
+    return inventories[player.UserId]
+end
+
 -- ========== PLAYER LIFECYCLE ==========
 -- initInventory roda APÓS o DataStoreManager terminar o load (hook abaixo), então
 -- pd.inventory / pd.equipped já existem e reaproveitamos suas referências.

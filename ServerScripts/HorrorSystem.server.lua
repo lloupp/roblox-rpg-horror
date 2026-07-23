@@ -1,5 +1,9 @@
--- ========== DARK SURVIVORS: Horror System ==========
+-- ========== DARK SURVIVORS: Horror System =========
 -- Server-side: sanity events, random horror, jump scares, ambient horror
+--
+-- Bug #2: sanidade agora é lida de SurvivalSystem via _G.GetStats(player).
+-- Não há mais tabela paralela deste lado — a fonte da verdade é única.
+-- Drenos de sanidade aplicam-se via _G.GetStats e ModifySanity (SurvivalSystem).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -22,9 +26,22 @@ end
 local HorrorEvent = ensureRemote("HorrorEvent", "RemoteEvent")
 local SanityEffect = ensureRemote("SanityEffect", "RemoteEvent")
 local JumpScare = ensureRemote("JumpScare", "RemoteEvent")
-local UpdateStats = ensureRemote("UpdateStats", "RemoteEvent")
 
--- ========== SANITY THRESHOLDS ==========
+-- ========== SANITY HELPER (fonte única = SurvivalSystem) =========
+local function getPlayerSanity(player)
+    local s = _G.GetStats and _G.GetStats(player)
+    return s and s.Sanity or 100
+end
+
+-- Aplica delta de sanidade na fonte da verdade (SurvivalSystem).
+-- Se o delta for grande (ex: entrada de zona), usa SetAsync direto no stats.
+local function modifySanity(player, delta)
+    local s = _G.GetStats and _G.GetStats(player)
+    if not s then return end
+    s.Sanity = math.clamp(s.Sanity + delta, 0, 100)
+end
+
+-- ========== SANITY THRESHOLDS =========
 local SANITY_TIERS = {
     { threshold = 70, events = { "Whispers", "DistantShadow" } },
     { threshold = 50, events = { "ScreenFlicker", "FakeEnemy", "DoorOpen" } },
@@ -32,55 +49,47 @@ local SANITY_TIERS = {
     { threshold = 15, events = { "UI_Lies", "EnemyLooksLikeNPC", "CompleteDistortion" } },
 }
 
--- ========== RANDOM HORROR EVENTS ==========
+-- ========== RANDOM HORROR EVENTS =========
 local RANDOM_EVENTS = {
     { name = "FootstepsBehind", minSanity = 50, weight = 20, nightBonus = 15 },
-    { name = "ShadowFigure", minSanity = 40, weight = 15, nightBonus = 20 },
-    { name = "RadioStatic", minSanity = 60, weight = 15, nightBonus = 10 },
-    { name = "PowerFailure", minSanity = 30, weight = 10, nightBonus = 15 },
-    { name = "BleedingWalls", minSanity = 30, weight = 10, nightBonus = 20 },
-    { name = "MusicBox", minSanity = 50, weight = 8, nightBonus = 12 },
-    { name = "DoorSlam", minSanity = 40, weight = 12, nightBonus = 10 },
-    { name = "DropBehind", minSanity = 60, weight = 10, nightBonus = 8 },
+    { name = "ShadowFigure",    minSanity = 40, weight = 15, nightBonus = 20 },
+    { name = "RadioStatic",     minSanity = 60, weight = 15, nightBonus = 10 },
+    { name = "PowerFailure",    minSanity = 30, weight = 10, nightBonus = 15 },
+    { name = "BleedingWalls",   minSanity = 30, weight = 10, nightBonus = 20 },
+    { name = "MusicBox",        minSanity = 50, weight = 8,  nightBonus = 12 },
+    { name = "DoorSlam",        minSanity = 40, weight = 12, nightBonus = 10 },
+    { name = "DropBehind",      minSanity = 60, weight = 10, nightBonus = 8 },
 }
 
 local JUMPSCARE_CHANCE = 0.05  -- 5% per eligible trigger
 local horrorIntervalMin = 30
 local horrorIntervalMax = 120
 
--- ========== PLAYER SANITY TRACKING ==========
-local playerSanity = {}
+-- ========== SANITY-BASED EVENTS =========
+local lastTierEvent = {}   -- userId -> last tier index that fired (evita spam)
 
-local function getPlayerSanity(player)
-    return playerSanity[player.UserId] or 100
-end
-
--- Listen for stat updates from SurvivalSystem
-local UpdateStatsRemote = Remotes:FindFirstChild("UpdateStats")
-if UpdateStatsRemote then
-    -- Server tracks sanity internally
-end
-
--- ========== SANITY-BASED EVENTS ==========
 local function checkSanityEvents(player)
     local sanity = getPlayerSanity(player)
     if sanity >= 100 then return end
 
-    for _, tier in ipairs(SANITY_TIERS) do
+    for i, tier in ipairs(SANITY_TIERS) do
         if sanity <= tier.threshold then
-            -- Pick a random event from this tier
-            local evt = tier.events[math.random(1, #tier.events)]
-            HorrorEvent:FireClient(player, {
-                type = "sanity",
-                event = evt,
-                sanity = sanity,
-                intensity = (100 - sanity) / 100,
-            })
+            local last = lastTierEvent[player.UserId]
+            if last ~= i then
+                lastTierEvent[player.UserId] = i
+                local evt = tier.events[math.random(1, #tier.events)]
+                HorrorEvent:FireClient(player, {
+                    type = "sanity",
+                    event = evt,
+                    sanity = sanity,
+                    intensity = (100 - sanity) / 100,
+                })
+            end
         end
     end
 end
 
--- ========== RANDOM HORROR EVENTS ==========
+-- ========== RANDOM HORROR EVENTS =========
 local function triggerRandomEvent(player)
     local sanity = getPlayerSanity(player)
     local isNight = _G.IsNight and _G.IsNight() or false
@@ -125,15 +134,15 @@ local function triggerRandomEvent(player)
             type = math.random(1, 3),  -- different jump scare variants
             duration = 0.3,
         })
-        -- Jump scare further reduces sanity
-        playerSanity[player.UserId] = math.max(0, sanity - 5)
+        -- Jump scare further reduces sanity (fonte única)
+        modifySanity(player, -5)
     end
 
     -- Sanity drain from horror events
-    playerSanity[player.UserId] = math.max(0, sanity - math.random(1, 3))
+    modifySanity(player, -math.random(1, 3))
 end
 
--- ========== AMBIENT HORROR (always running) ==========
+-- ========== AMBIENT HORROR (always running) =========
 local function ambientHorror(player)
     local sanity = getPlayerSanity(player)
 
@@ -152,11 +161,11 @@ local function ambientHorror(player)
     end
 
     if drainRate > 0 then
-        playerSanity[player.UserId] = math.max(0, sanity - drainRate * 0.1)
+        modifySanity(player, -drainRate * 0.1)
     end
 end
 
--- ========== ZONE-TRIGGERED HORROR ==========
+-- ========== ZONE-TRIGGERED HORROR =========
 local ZONE_TRIGGERS = {
     Hospital = { event = "HospitalEntry", sanityDrain = 10 },
     Caves = { event = "CaveEntry", sanityDrain = 5 },
@@ -179,14 +188,13 @@ local function checkZoneTriggers(player)
                 event = trigger.event,
                 zone = biome,
             })
-            -- Drain sanity on first entry
-            playerSanity[userId] = math.max(0,
-                (playerSanity[userId] or 100) - trigger.sanityDrain)
+            -- Drain sanity on first entry (fonte única)
+            modifySanity(player, -trigger.sanityDrain)
         end
     end
 end
 
--- ========== MAIN LOOP ==========
+-- ========== MAIN LOOP =========
 local horrorTimers = {}
 local sanityCheckAccum = 0
 
@@ -197,11 +205,6 @@ RunService.Heartbeat:Connect(function(dt)
 
     for _, player in ipairs(Players:GetPlayers()) do
         local userId = player.UserId
-
-        -- Initialize if needed
-        if not playerSanity[userId] then
-            playerSanity[userId] = 100
-        end
 
         if not horrorTimers[userId] then
             horrorTimers[userId] = tick() + math.random(horrorIntervalMin, horrorIntervalMax)
@@ -226,26 +229,18 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
--- ========== PLAYER LIFECYCLE ==========
-Players.PlayerAdded:Connect(function(player)
-    playerSanity[player.UserId] = 100
-end)
-
+-- ========== PLAYER LIFECYCLE =========
 Players.PlayerRemoving:Connect(function(player)
-    playerSanity[player.UserId] = nil
     horrorTimers[player.UserId] = nil
     playerZones[player.UserId] = nil
+    lastTierEvent[player.UserId] = nil
 end)
 
--- ========== EXTERNAL: Modify Sanity (called by other scripts) ==========
-function HorrorEvent_ModifySanity(player, amount)
-    if playerSanity[player.UserId] then
-        playerSanity[player.UserId] = math.clamp(
-            playerSanity[player.UserId] + amount, 0, 100)
-    end
+-- ========== EXTERNAL: Modify Sanity (called by other scripts) =========
+-- Mantido para compat: repassa para a fonte única.
+_HorrorSystem_ModifySanity = function(player, amount)
+    modifySanity(player, amount)
 end
-
--- Expose for other server scripts
-_G.ModifySanity = HorrorEvent_ModifySanity
+_G.ModifySanity = _HorrorSystem_ModifySanity
 
 print("[HorrorSystem] Loaded ✓")

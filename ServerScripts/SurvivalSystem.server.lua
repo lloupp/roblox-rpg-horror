@@ -55,13 +55,17 @@ local function clamp(val, min, max)
 end
 
 local function initPlayer(player)
+    -- Bug #3: restaura stats do DataStore em vez de sempre usar DEFAULTS.
+    local pd = _G.GetPlayerData and _G.GetPlayerData(player)
+    local saved = pd and pd.stats or {}
+
     playerStats[player.UserId] = {
-        Health = DEFAULTS.Health,
-        MaxHealth = DEFAULTS.MaxHealth,
-        Hunger = DEFAULTS.Hunger,
-        Thirst = DEFAULTS.Thirst,
-        Sanity = DEFAULTS.Sanity,
-        Stamina = DEFAULTS.Stamina,
+        Health = saved.Health or DEFAULTS.Health,
+        MaxHealth = saved.MaxHealth or DEFAULTS.MaxHealth,
+        Hunger = saved.Hunger or DEFAULTS.Hunger,
+        Thirst = saved.Thirst or DEFAULTS.Thirst,
+        Sanity = saved.Sanity or DEFAULTS.Sanity,
+        Stamina = saved.Stamina or DEFAULTS.Stamina,
         IsRunning = false,
         IsDead = false,
     }
@@ -111,9 +115,22 @@ local function onPlayerAdded(player)
         if s then
             s.Health = DEFAULTS.Health
             s.IsDead = false
-            humanoid.MaxHealth = DEFAULTS.MaxHealth
-            humanoid.Health = DEFAULTS.Health
+            humanoid.MaxHealth = s.MaxHealth
+            humanoid.Health = s.Health
         end
+
+        -- Bug #1: ouve dano externo (TakeDamage de inimigos, etc.) e
+        -- sincroniza o Health real do Humanoid de volta para s.Health.
+        -- Sem isso, o loop sobrescrevia humanoid.Health com s.Health velho,
+        -- cancelando qualquer dano recebido.
+        humanoid.HealthChanged:Connect(function(newHealth)
+            local st = getStats(player)
+            if not st then return end
+            st.Health = math.clamp(newHealth, 0, st.MaxHealth)
+            if newHealth <= 0 and not st.IsDead then
+                st.IsDead = true
+            end
+        end)
 
         -- Track running state
         humanoid.Running:Connect(function(speed)
@@ -195,8 +212,12 @@ RunService.Heartbeat:Connect(function(dt)
             humanoid.WalkSpeed = WALK_SPEED
         end
 
-        -- Sync humanoid health
-        humanoid.Health = s.Health
+        -- Bug #1: só aplicamos dano (s.Health < humanoid.Health).
+        -- Nunca sobrescrevemos dano externo; o listener HealthChanged
+        -- já mantém s.Health sincronizado com o humanoid.
+        if s.Health < humanoid.Health then
+            humanoid.Health = s.Health
+        end
 
         -- Sanity low trigger
         if s.Sanity < 30 then
@@ -247,6 +268,10 @@ RunToggle.OnServerEvent:Connect(function(player, isRunning)
 end)
 
 -- ========== SANITY MODIFY (called by other server scripts) ==========
+-- Bug #2: expõe GetStats para HorrorSystem ler a sanidade daqui
+-- em vez de manter uma tabela paralela dessincronizada.
+_G.GetStats = getStats
+
 local ModifySanityRemote = ensureRemote("ModifySanity", "RemoteEvent")
 
 ModifySanityRemote.OnServerEvent:Connect(function(player, amount)
