@@ -228,7 +228,7 @@ task.spawn(function()
 end)
 
 -- ========== ON SHUTDOWN (graceful save) ==========
-game:BindOnClose(function()
+game:BindToClose(function()
     for _, player in ipairs(Players:GetPlayers()) do
         savePlayerData(player)
     end
