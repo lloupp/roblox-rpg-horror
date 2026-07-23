@@ -303,7 +303,28 @@ ModifySanityRemote.OnServerEvent:Connect(function(player, amount)
 end)
 
 -- ========== PLAYER LIFECYCLE ==========
-Players.PlayerAdded:Connect(onPlayerAdded)
+-- Phase 3: desabilita auto-respawn do Roblox para que DeathScreen controle.
+Players.CharacterAutoLoads = false
+
+Players.PlayerAdded:Connect(function(player)
+    initPlayer(player)
+
+    -- Phase 3: onPlayerAdded conecta CharacterAdded (HealthChanged, Running, Died).
+    onPlayerAdded(player)
+
+    -- Spawn inicial
+    player:LoadCharacter()
+
+    -- Phase 3: quando o DeathScreen chama LoadCharacter no cliente,
+    -- re-inicializa stats do DataStore para o novo character.
+    player.CharacterAdded:Connect(function()
+        local s = getStats(player)
+        if s then
+            s.IsDead = false
+            s.Health = s.MaxHealth
+        end
+    end)
+end)
 Players.PlayerRemoving:Connect(function(player)
     playerStats[player.UserId] = nil
 end)

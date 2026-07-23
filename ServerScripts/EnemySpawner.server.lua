@@ -104,13 +104,47 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
--- ========== INIT ==========
+-- ========== INIT =========
 local enemyFolder = Workspace:FindFirstChild("EnemySpawns")
 if not enemyFolder then
 	enemyFolder = Instance.new("Folder")
 	enemyFolder.Name = "EnemySpawns"
 	enemyFolder.Parent = Workspace
 	warn("[EnemySpawner] Pasta EnemySpawns criada — adicione Parts marcadores no Studio.")
+end
+
+-- Phase 3: auto-gera spawns se o mundo estiver vazio (sem markers).
+-- Isso permite testar o jogo imediatamente sem montar o mapa no Studio.
+-- Posiciona spawns nos arredores da origem (0,0,0) em círculos.
+local realMarkers = 0
+for _, child in ipairs(enemyFolder:GetChildren()) do
+	if child:IsA("BasePart") then realMarkers = realMarkers + 1 end
+end
+
+if realMarkers == 0 then
+	warn("[EnemySpawner] Nenhum marker encontrado — gerando spawns automáticos para teste.")
+	local SPAWN_CONFIGS = {
+		{ type = "Zombie", count = 6, radius = 40, height = 3 },
+		{ type = "Shadow", count = 3, radius = 60, height = 3 },
+		{ type = "Mutant", count = 2, radius = 80, height = 3 },
+	}
+	for _, cfg in ipairs(SPAWN_CONFIGS) do
+		for i = 1, cfg.count do
+			local angle = (i / cfg.count) * math.pi * 2
+			local marker = Instance.new("Part")
+			marker.Name = cfg.type .. "Spawn" .. i
+			marker.Size = Vector3.new(1, 1, 1)
+			marker.Position = Vector3.new(
+				math.cos(angle) * cfg.radius,
+				cfg.height,
+				math.sin(angle) * cfg.radius
+			)
+			marker.Anchored = true
+			marker.CanCollide = false
+			marker.Transparency = 1
+			marker.Parent = enemyFolder
+		end
+	end
 end
 
 for _, marker in ipairs(enemyFolder:GetChildren()) do

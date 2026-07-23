@@ -207,6 +207,13 @@ AttackRequest.OnServerEvent:Connect(function(player, weaponName)
         end
     end
 
+    -- Phase 3: play hit sound at impact position
+    local PlaySound = Remotes:FindFirstChild("PlaySound")
+    if PlaySound then
+        local sndName = isCrit and "critHit" or "meleeHit"
+        PlaySound:FireAllClients(sndName, hitPosition)
+    end
+
     -- Enemy death → loot
     if targetHumanoid.Health <= 0 then
         local enemyType = targetCharacter:FindFirstChild("EnemyType")
