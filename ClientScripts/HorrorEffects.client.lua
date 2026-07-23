@@ -302,10 +302,10 @@ end
 
 function triggerPowerFailure()
     task.spawn(function()
-        -- Kill flashlight for 5 seconds (notify HUD)
-        local flashRemote = Remotes:FindFirstChild("FlashlightFailure")
-        if flashRemote then
-            flashRemote:FireServer(5)
+        -- Notify server to kill lights for 5 seconds
+        local toolAction = Remotes:FindFirstChild("ToolAction")
+        if toolAction then
+            toolAction:FireServer("powerFailure", 5)
         end
         -- Brief blackout effect
         distortion.BackgroundColor3 = Color3.fromRGB(0, 0, 0)

@@ -68,6 +68,11 @@ local function initPlayer(player)
         Stamina = saved.Stamina or DEFAULTS.Stamina,
         IsRunning = false,
         IsDead = false,
+        -- Phase 2: temporary status effects
+        PoisonStacks = 0,        -- ticks de veneno restantes
+        PoisonDPS = 0,           -- dano por tick de veneno
+        SpeedBoostEnds = 0,      -- os.time() quando o boost expira
+        SpeedBoostMult = 1,      -- multiplicador de speed (1 = sem boost)
     }
 end
 
@@ -205,11 +210,28 @@ RunService.Heartbeat:Connect(function(dt)
             s.Stamina = clamp(s.Stamina + STAMINA_REGEN * dt, 0, 100)
         end
 
-        -- Speed based on stamina
+        -- Speed based on stamina + speed boost (Adrenaline)
+        local baseSpeed = WALK_SPEED
         if s.IsRunning and s.Stamina > 0 then
-            humanoid.WalkSpeed = RUN_SPEED
+            baseSpeed = RUN_SPEED
+        end
+        -- Phase 2: speed boost ativo?
+        if os.time() < s.SpeedBoostEnds and s.SpeedBoostMult > 1 then
+            humanoid.WalkSpeed = baseSpeed * s.SpeedBoostMult
         else
-            humanoid.WalkSpeed = WALK_SPEED
+            s.SpeedBoostMult = 1
+            s.SpeedBoostEnds = 0
+            humanoid.WalkSpeed = baseSpeed
+        end
+
+        -- Phase 2: poison tick (1 dano por segundo por stack)
+        if s.PoisonStacks > 0 then
+            s.PoisonStacks = s.PoisonStacks - dt
+            s.Health = clamp(s.Health - s.PoisonDPS * dt, 0, s.MaxHealth)
+            if s.PoisonStacks <= 0 then
+                s.PoisonStacks = 0
+                s.PoisonDPS = 0
+            end
         end
 
         -- Bug #1: só aplicamos dano (s.Health < humanoid.Health).
@@ -302,7 +324,31 @@ _G.ApplyConsumable = function(player, itemId)
         if drinkEffect.Thirst then s.Thirst = clamp(s.Thirst + drinkEffect.Thirst, 0, 100) end
         if drinkEffect.Stamina then s.Stamina = clamp(s.Stamina + drinkEffect.Stamina, 0, 100) end
         if drinkEffect.Health then s.Health = clamp(s.Health + drinkEffect.Health, 0, s.MaxHealth) end
+        return
     end
+
+    -- Phase 2: itens médicos especiais
+    if itemId == "Antidote" then
+        s.PoisonStacks = 0
+        s.PoisonDPS = 0
+        return
+    end
+
+    if itemId == "Adrenaline" then
+        s.Stamina = clamp(s.Stamina + 50, 0, 100)
+        s.SpeedBoostMult = 1.5
+        s.SpeedBoostEnds = os.time() + 10
+        return
+    end
+end
+
+-- Phase 2: permite que EnemyAI/throwables apliquem veneno no jogador
+_G.ApplyPoison = function(player, dps, duration)
+    local s = getStats(player)
+    if not s then return end
+    -- Não remove imunidade de GasMask aqui; EnemyAI já checa poisonImmunity
+    s.PoisonStacks = math.max(s.PoisonStacks, duration)
+    s.PoisonDPS = math.max(s.PoisonDPS, dps)
 end
 
 print("[SurvivalSystem] Loaded ✓")

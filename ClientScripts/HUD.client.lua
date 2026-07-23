@@ -1,16 +1,29 @@
--- ========== DARK SURVIVORS: HUD (Client) ==========
--- LocalScript: status bars, hotbar, minimap, inventory/crafting panels
+-- ========== DARK SURVIVORS: HUD (Client) =========
+-- LocalScript: status bars, hotbar, inventory/crafting panels, input handling.
+-- Phase 2: InventoryUpdate listener, hotbar use, attack (click), block (F),
+--          sprint (Shift), place trap (G), throw (T).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Mouse = Players.LocalPlayer:GetMouse()
 
 local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local UpdateStats = Remotes:WaitForChild("UpdateStats")
 local DamageNumber = Remotes:WaitForChild("DamageNumber")
+local InventoryUpdate = Remotes:WaitForChild("InventoryUpdate")
+local InventoryAction = Remotes:WaitForChild("InventoryAction")
+local AttackRequest = Remotes:WaitForChild("AttackRequest")
+local CraftingResult = Remotes:WaitForChild("CraftingResult")
+
+-- Local references for remotes created by other systems
+local function getRemote(name)
+    return Remotes:FindFirstChild(name)
+end
 
 -- ========== STATE ==========
 local currentStats = {
@@ -20,8 +33,20 @@ local currentStats = {
 local inventoryOpen = false
 local craftingOpen = false
 local hotbarSelection = 1
+local isBlocking = false
+local isRunning = false
 
--- ========== CREATE GUI ==========
+-- Inventory data from server
+local inventoryData = {
+    slots = {},
+    maxSlots = 8,
+    equipped = {},
+    hotbar = {},
+    totalWeight = 0,
+    maxWeight = 50,
+}
+
+-- ========== GUI ==========
 local gui = Instance.new("ScreenGui")
 gui.Name = "DarkSurvivorsHUD"
 gui.ResetOnSpawn = false
@@ -78,16 +103,13 @@ local function updateBars()
         local maxVal = stat == "Health" and (currentStats.MaxHealth or 100) or 100
         local pct = math.clamp(value / maxVal, 0, 1)
 
-        -- Smooth tween
         TweenService:Create(fill, TweenInfo.new(0.3),
             { Size = UDim2.new(pct, 0, 1, 0) }):Play()
 
-        -- Update text
         local icons = { Health = "❤️", Hunger = "🍖", Thirst = "💧",
                         Stamina = "⚡", Sanity = "🧠" }
         label.Text = (icons[stat] or "") .. " " .. math.floor(value)
 
-        -- Sanity bar pulse when low
         if stat == "Sanity" and value < 30 then
             local pulse = (math.sin(tick() * 4) + 1) / 2
             fill.BackgroundColor3 = Color3.fromRGB(
@@ -107,6 +129,7 @@ hotbarFrame.BorderSizePixel = 0
 hotbarFrame.Parent = gui
 
 local hotbarSlots = {}
+local hotbarLabels = {}
 for i = 1, 4 do
     local slot = Instance.new("Frame")
     slot.Name = "Slot" .. i
@@ -127,10 +150,19 @@ for i = 1, 4 do
     keyLabel.Text = tostring(i)
     keyLabel.Parent = slot
 
+    local itemLabel = Instance.new("TextLabel")
+    itemLabel.Size = UDim2.new(1, 0, 1, 0)
+    itemLabel.BackgroundTransparency = 1
+    itemLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    itemLabel.Font = Enum.Font.GothamBold
+    itemLabel.TextSize = 9
+    itemLabel.Text = ""
+    itemLabel.Parent = slot
+
     hotbarSlots[i] = slot
+    hotbarLabels[i] = itemLabel
 end
 
--- Highlight selected hotbar slot
 local function updateHotbarHighlight()
     for i, slot in ipairs(hotbarSlots) do
         if i == hotbarSelection then
@@ -141,6 +173,20 @@ local function updateHotbarHighlight()
     end
 end
 updateHotbarHighlight()
+
+-- ========== UPDATE HOTBAR CONTENT ==========
+local function updateHotbarContent()
+    for i = 1, 4 do
+        local slotIdx = inventoryData.hotbar[i]
+        local label = hotbarLabels[i]
+        if slotIdx and inventoryData.slots[slotIdx] then
+            local item = inventoryData.slots[slotIdx]
+            label.Text = item.itemId:sub(1, 8) .. "\n" .. (item.count or 1)
+        else
+            label.Text = ""
+        end
+    end
+end
 
 -- ========== CROSSHAIR ==========
 local crosshair = Instance.new("Frame")
@@ -253,9 +299,40 @@ craftTitle.Text = "CRAFTING"
 craftTitle.BorderSizePixel = 0
 craftTitle.Parent = craftFrame
 
+-- ========== EQUIPPED INDICATOR ==========
+local equipFrame = Instance.new("Frame")
+equipFrame.Name = "EquipInfo"
+equipFrame.Size = UDim2.new(0, 200, 0, 25)
+equipFrame.Position = UDim2.new(0, 10, 0, 135)
+equipFrame.BackgroundTransparency = 1
+equipFrame.Parent = gui
+
+local equipLabel = Instance.new("TextLabel")
+equipLabel.Size = UDim2.new(1, 0, 1, 0)
+equipLabel.BackgroundTransparency = 1
+equipLabel.TextColor3 = Color3.fromRGB(200, 160, 100)
+equipLabel.Font = Enum.Font.GothamBold
+equipLabel.TextSize = 12
+equipLabel.TextXAlignment = Enum.TextXAlignment.Left
+equipLabel.Text = ""
+equipLabel.Parent = equipFrame
+
 -- ========== STAT SYNC ==========
 UpdateStats.OnClientEvent:Connect(function(stats)
     currentStats = stats
+end)
+
+-- ========== INVENTORY SYNC ==========
+InventoryUpdate.OnClientEvent:Connect(function(data)
+    inventoryData = data
+    updateHotbarContent()
+    -- Update equip label
+    local equipped = data.equipped or {}
+    local equipTexts = {}
+    if equipped.weapon then table.insert(equipTexts, "⚔️ " .. equipped.weapon) end
+    if equipped.armor then table.insert(equipTexts, "🛡️ " .. equipped.armor) end
+    if equipped.tool then table.insert(equipTexts, "🔧 " .. equipped.tool) end
+    equipLabel.Text = table.concat(equipTexts, "  ")
 end)
 
 -- ========== TIME UPDATE ==========
@@ -266,6 +343,36 @@ TimeUpdate.OnClientEvent:Connect(function(data)
     local icon = data.isNight and "🌙" or "☀️"
     clockLabel.Text = icon .. " " .. string.format("%02d:%02d", h, m)
 end)
+
+-- ========== CRAFTING RESULT ==========
+local function showCraftResult(msg)
+    task.spawn(function()
+        local resultLabel = Instance.new("TextLabel")
+        resultLabel.Size = UDim2.new(0, 250, 0, 30)
+        resultLabel.Position = UDim2.new(0.5, -125, 0, 200)
+        resultLabel.BackgroundTransparency = 0.3
+        resultLabel.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
+        resultLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+        resultLabel.Font = Enum.Font.GothamBold
+        resultLabel.TextSize = 14
+        resultLabel.Text = msg
+        resultLabel.Parent = gui
+        wait(2)
+        for i = 0, 1, 0.1 do
+            resultLabel.TextTransparency = i
+            resultLabel.BackgroundTransparency = 0.3 + i * 0.7
+            wait(0.05)
+        end
+        resultLabel:Destroy()
+    end)
+end
+
+if CraftingResult then
+    CraftingResult.OnClientEvent:Connect(function(data)
+        local msg = data.message or (data.success and "Crafted!" or "Failed")
+        showCraftResult(msg)
+    end)
+end
 
 -- ========== DAMAGE NUMBERS ==========
 DamageNumber.OnClientEvent:Connect(function(data)
@@ -279,10 +386,8 @@ DamageNumber.OnClientEvent:Connect(function(data)
     dmgLabel.Text = (data.isCrit and "CRIT " or "") .. tostring(data.damage)
     dmgLabel.Parent = gui
 
-    -- Position roughly at screen center (real project would project 3D→2D)
     dmgLabel.Position = UDim2.new(0.5, math.random(-50, 50), 0.5, -20)
 
-    -- Float up and fade
     task.spawn(function()
         for i = 1, 20 do
             dmgLabel.Position = dmgLabel.Position + UDim2.new(0, 0, 0, -2)
@@ -298,20 +403,69 @@ UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
 
     -- Hotbar keys 1-4
-    if input.KeyCode == Enum.KeyCode.One then hotbarSelection = 1; updateHotbarHighlight()
-    elseif input.KeyCode == Enum.KeyCode.Two then hotbarSelection = 2; updateHotbarHighlight()
-    elseif input.KeyCode == Enum.KeyCode.Three then hotbarSelection = 3; updateHotbarHighlight()
-    elseif input.KeyCode == Enum.KeyCode.Four then hotbarSelection = 4; updateHotbarHighlight()
+    if input.KeyCode == Enum.KeyCode.One then
+        hotbarSelection = 1
+        updateHotbarHighlight()
+    elseif input.KeyCode == Enum.KeyCode.Two then
+        hotbarSelection = 2
+        updateHotbarHighlight()
+    elseif input.KeyCode == Enum.KeyCode.Three then
+        hotbarSelection = 3
+        updateHotbarHighlight()
+    elseif input.KeyCode == Enum.KeyCode.Four then
+        hotbarSelection = 4
+        updateHotbarHighlight()
 
-    -- Toggle inventory
+    -- Use hotbar item (R = use equipped hotbar slot)
+    elseif input.KeyCode == Enum.KeyCode.R then
+        local slotIdx = inventoryData.hotbar[hotbarSelection]
+        if slotIdx then
+            InventoryAction:FireServer("use", { slotIndex = slotIdx })
+        end
+
+    -- Toggle inventory (I)
     elseif input.KeyCode == Enum.KeyCode.I then
         inventoryOpen = not inventoryOpen
         invFrame.Visible = inventoryOpen
 
-    -- Toggle crafting
+    -- Toggle crafting (C)
     elseif input.KeyCode == Enum.KeyCode.C then
         craftingOpen = not craftingOpen
         craftFrame.Visible = craftingOpen
+
+    -- Sprint (Left Shift) - Phase 2
+    elseif input.KeyCode == Enum.KeyCode.LeftShift then
+        isRunning = true
+        local runToggle = getRemote("ToggleRun")
+        if runToggle then runToggle:FireServer(true) end
+
+    -- Block toggle (F) - Phase 2
+    elseif input.KeyCode == Enum.KeyCode.F then
+        isBlocking = not isBlocking
+        local blockRemote = getRemote("ToggleBlock")
+        if blockRemote then blockRemote:FireServer(isBlocking) end
+    end
+end)
+
+-- ========== SPRINT RELEASE ==========
+UserInputService.InputEnded:Connect(function(input, processed)
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        isRunning = false
+        local runToggle = getRemote("ToggleRun")
+        if runToggle then runToggle:FireServer(false) end
+    end
+end)
+
+-- ========== MOUSE INPUT (Attack) - Phase 2 ==========
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+
+    -- Left click = attack with equipped weapon
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local equipped = inventoryData.equipped and inventoryData.equipped.weapon
+        if equipped then
+            AttackRequest:FireServer(equipped)
+        end
     end
 end)
 

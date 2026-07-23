@@ -316,9 +316,18 @@ InventoryAction.OnServerEvent:Connect(function(player, action, data)
                         _G.ApplyConsumable(player, slot.itemId)
                     end
                     removeItem(player, slot.itemId, 1)
+
                 elseif item.category == "Medical" then
+                    -- Phase 2: todos os médicos passam por ApplyConsumable,
+                    -- que lida com Antidote (cura poison), Adrenaline (speed boost),
+                    -- Bandage/MedKit (heal), etc.
+                    if _G.ApplyConsumable then
+                        _G.ApplyConsumable(player, slot.itemId)
+                    end
+                    -- ApplyConsumable já lê healthRestore do item? Não —
+                    -- Food/Drink tratam via FOOD_EFFECTS/DRINK_EFFECTS.
+                    -- Medical items usam item.healthRestore diretamente:
                     if item.healthRestore then
-                        -- Apply heal
                         local hum = player.Character and
                             player.Character:FindFirstChild("Humanoid")
                         if hum then
@@ -409,6 +418,9 @@ end
 _G.GetInventory = function(player)
     return inventories[player.UserId]
 end
+
+-- Phase 2: expõe RemoveItem para TrapThrowableSystem consumir itens.
+_G.RemoveItem = removeItem
 
 -- ========== PLAYER LIFECYCLE ==========
 -- initInventory roda APÓS o DataStoreManager terminar o load (hook abaixo), então
