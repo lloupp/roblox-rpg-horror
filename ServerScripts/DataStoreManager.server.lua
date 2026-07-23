@@ -24,11 +24,18 @@ local function ensureRemote(n, c)
     return r
 end
 
--- ========== DATA STORE ==========
+-- ========== DATA STORE =========
+local RunService = game:GetService("RunService")
+local IS_STUDIO = RunService:IsStudio()
+
 local dataStore
-pcall(function()
-    dataStore = DataStoreService:GetDataStore("DarkSurvivors_v" .. DATA_VERSION)
-end)
+if not IS_STUDIO then
+    pcall(function()
+        dataStore = DataStoreService:GetDataStore("DarkSurvivors_v" .. DATA_VERSION)
+    end)
+else
+    warn("[DataStore] Running in Studio — DataStore disabled, using in-memory only.")
+end
 
 -- ========== PLAYER DATA ==========
 local playerData = {}
@@ -62,8 +69,9 @@ local STARTER_ITEMS = {
     { itemId = "WaterBottle", count = 1 },
 }
 
--- ========== SAFE DATA OPERATIONS ==========
+-- ========== SAFE DATA OPERATIONS =========
 local function safeGet(key)
+    if not dataStore then return nil end  -- Studio mode: no DataStore
     for attempt = 1, MAX_RETRIES do
         local success, result = pcall(function()
             return dataStore:GetAsync(key)
@@ -76,6 +84,7 @@ local function safeGet(key)
 end
 
 local function safeSet(key, value)
+    if not dataStore then return true end  -- Studio mode: pretend success
     for attempt = 1, MAX_RETRIES do
         local success, result = pcall(function()
             dataStore:SetAsync(key, value)
@@ -237,7 +246,7 @@ task.spawn(function()
 end)
 
 -- ========== ON SHUTDOWN (graceful save) ==========
-game:BindOnClose(function()
+game:BindToClose(function()
     for _, player in ipairs(Players:GetPlayers()) do
         savePlayerData(player)
     end
